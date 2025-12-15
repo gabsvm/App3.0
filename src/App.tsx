@@ -3,12 +3,12 @@ import {
   Dumbbell, ChevronRight, Youtube, Info, Filter, RefreshCw, Unlock, 
   Timer, Play, Pause, RotateCcw, X, Edit3, Check, ArrowUp, ArrowDown, 
   ArrowRight, Settings, Download, Upload, Link as LinkIcon, Unlink, 
-  Plus, User, Smartphone, Menu, Trash2, Save
+  Plus, User, Smartphone, Menu, Trash2, Save, CheckCircle2, Trophy,
+  BookOpen, Calendar, Activity, BarChart3, ArrowRightCircle
 } from 'lucide-react';
 
-// --- VERSIÓN PORTÁTIL (LOCALSTORAGE) ---
+// --- CONFIGURACIÓN & DATOS ---
 
-// --- CATEGORÍAS TÉCNICAS RP ---
 const CATEGORIES = [
   "Horizontal Push", "Incline Push", "Vertical Push", 
   "Vertical Pull", "Horizontal Pull", 
@@ -17,7 +17,6 @@ const CATEGORIES = [
   "Quads", "Hamstrings", "Glutes", "Calves", "Abs"
 ];
 
-// --- ESTRUCTURA POR DEFECTO ---
 const DEFAULT_STRUCTURE = {
   1: ["Horizontal Push", "Vertical Pull", "Quads", "Hamstrings", "Side Delts"],
   2: ["Vertical Push", "Horizontal Pull", "Glutes", "Triceps", "Biceps"],
@@ -25,11 +24,17 @@ const DEFAULT_STRUCTURE = {
   4: ["Horizontal Push", "Horizontal Pull", "Side Delts", "Triceps", "Biceps"]
 };
 
+// Series iniciales recomendadas (MEV)
+const INITIAL_SETS_CONFIG = {
+    "Quads": 3, "Chest": 3, "Horizontal Push": 2, "Incline Push": 2, "Vertical Push": 2,
+    "Vertical Pull": 2, "Horizontal Pull": 2, "Hamstrings": 2, "Glutes": 2,
+    "Side Delts": 3, "Rear Delts": 3, "Biceps": 3, "Triceps": 3, "Calves": 3, "Abs": 3
+};
+
 const DEFAULT_SUPERSETS_MESO3 = {
     1: [2, 4], 2: [2, 4], 3: [2, 4], 4: [2, 4]
 };
 
-// --- BASE DE DATOS DE EJERCICIOS ---
 const EXERCISE_DB_DEFAULT = [
   { category: "Vertical Pull", name: "Assisted Overhand Pullup", url: "https://youtu.be/ghHW6sETs-I" },
   { category: "Vertical Pull", name: "Wide Grip Pullup", url: "https://youtu.be/HOWPPDueZY8" },
@@ -77,10 +82,10 @@ const EXERCISE_DB_DEFAULT = [
 ];
 
 const MESOCYCLES = [
-  { id: 'meso1', name: 'Meso 1: Base', weeks: 5, deloadWeek: 5 },
-  { id: 'meso2', name: 'Meso 2: Hipertrofia', weeks: 5, deloadWeek: 5 },
-  { id: 'meso3', name: 'Meso 3: Metabolito', weeks: 4, deloadWeek: 4 },
-  { id: 'meso4', name: 'Meso 4: Resensibilización', weeks: 3, deloadWeek: 3 },
+  { id: 'meso1', name: 'Meso 1: Base', weeks: 5, deloadWeek: 5, desc: "Fundamentos y Sobrecarga" },
+  { id: 'meso2', name: 'Meso 2: Hipertrofia', weeks: 5, deloadWeek: 5, desc: "Volumen y Variedad" },
+  { id: 'meso3', name: 'Meso 3: Metabolito', weeks: 4, deloadWeek: 4, desc: "Pump, Superseries y Estrés" },
+  { id: 'meso4', name: 'Meso 4: Resensibilización', weeks: 3, deloadWeek: 3, desc: "Bajo Volumen, Alta Intensidad" },
 ];
 
 const RATING_GUIDE = [
@@ -99,11 +104,14 @@ const getTargetRIR = (week, isDeload) => {
     return { text: "0 RIR (Fallo)", color: "text-red-400" };
 };
 
-// --- DATA MANAGER (LocalStorage) ---
-const STORAGE_KEY = 'rp_hypertrophy_data_v1';
+const STORAGE_KEY = 'rp_hypertrophy_data_v3';
 
 const getStoredData = () => {
     const data = localStorage.getItem(STORAGE_KEY);
+    if (!data) {
+        const oldData = localStorage.getItem('rp_hypertrophy_data_v2');
+        if (oldData) return JSON.parse(oldData);
+    }
     return data ? JSON.parse(data) : { plans: {}, logs: {}, settings: {} };
 };
 
@@ -124,6 +132,7 @@ const Card = ({ children, className = '', noBottomRadius = false, noTopRadius = 
   </div>
 );
 
+// --- REST TIMER ---
 const RestTimer = () => {
     const [seconds, setSeconds] = useState(0);
     const [isActive, setIsActive] = useState(false);
@@ -179,17 +188,17 @@ const RestTimer = () => {
 };
 
 // --- SETTINGS MODAL ---
-const SettingsModal = ({ isOpen, onClose, onOpenInstall, fullData, onImport }) => {
+const SettingsModal = ({ isOpen, onClose, fullData, onImport }) => {
     const fileInputRef = useRef(null);
     const [status, setStatus] = useState('');
     if (!isOpen) return null;
 
     const handleExport = () => {
         try {
-            const exportData = { ...fullData, exportedAt: new Date().toISOString(), version: "portable_v1" };
+            const exportData = { ...fullData, exportedAt: new Date().toISOString(), version: "portable_v3" };
             const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
-            const a = document.createElement('a'); a.href = url; a.download = `rp_offline_backup.json`; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            const a = document.createElement('a'); a.href = url; a.download = `rp_backup_v3.json`; document.body.appendChild(a); a.click(); document.body.removeChild(a);
             setStatus('¡Exportación completada!');
         } catch (error) { console.error(error); setStatus('Error al exportar.'); }
     };
@@ -208,7 +217,7 @@ const SettingsModal = ({ isOpen, onClose, onOpenInstall, fullData, onImport }) =
     };
     
     const handleReset = () => {
-        if(confirm("¿Estás seguro? Esto borrará todos tus datos de este dispositivo.")){
+        if(confirm("¿Estás seguro? Esto borrará todos tus datos.")){
              localStorage.removeItem(STORAGE_KEY);
              window.location.reload();
         }
@@ -218,24 +227,17 @@ const SettingsModal = ({ isOpen, onClose, onOpenInstall, fullData, onImport }) =
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
             <div className="bg-slate-900 border border-slate-700 p-6 rounded-2xl w-full max-w-sm shadow-2xl relative">
                 <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-white"><X/></button>
-                <h2 className="text-xl font-bold mb-6 flex items-center gap-2"><Settings className="text-blue-500"/> Sistema (Offline)</h2>
+                <h2 className="text-xl font-bold mb-6 flex items-center gap-2"><Settings className="text-blue-500"/> Configuración</h2>
                 <div className="space-y-3">
-                    <button onClick={() => { onClose(); onOpenInstall(); }} className="w-full bg-slate-800 hover:bg-slate-700 border border-slate-600 p-4 rounded-xl flex items-center gap-4 transition-all group">
-                        <div className="bg-purple-900/30 p-2 rounded-lg text-purple-400 group-hover:text-purple-300"><Smartphone size={24}/></div>
-                        <div><div className="font-bold text-white text-left">Instalar App</div><div className="text-xs text-slate-400">Guía para usar en móvil</div></div>
-                    </button>
-
                     <button onClick={handleExport} className="w-full bg-slate-800 hover:bg-slate-700 border border-slate-600 p-4 rounded-xl flex items-center gap-4 transition-all group">
                         <div className="bg-blue-900/30 p-2 rounded-lg text-blue-400 group-hover:text-blue-300"><Download size={24}/></div>
                         <div><div className="font-bold text-white text-left">Exportar Datos</div><div className="text-xs text-slate-400">Descarga tu backup JSON</div></div>
                     </button>
-                    
                     <button onClick={() => fileInputRef.current?.click()} className="w-full bg-slate-800 hover:bg-slate-700 border border-slate-600 p-4 rounded-xl flex items-center gap-4 transition-all group">
                         <div className="bg-green-900/30 p-2 rounded-lg text-green-400 group-hover:text-green-300"><Upload size={24}/></div>
                         <div><div className="font-bold text-white text-left">Importar Datos</div><div className="text-xs text-slate-400">Restaura desde archivo</div></div>
                     </button>
                     <input type="file" ref={fileInputRef} onChange={handleImport} className="hidden" accept=".json"/>
-                    
                     <button onClick={handleReset} className="w-full bg-red-900/10 hover:bg-red-900/30 border border-red-900/30 p-4 rounded-xl flex items-center gap-4 transition-all group mt-4">
                         <div className="bg-red-900/30 p-2 rounded-lg text-red-400 group-hover:text-red-300"><Trash2 size={24}/></div>
                         <div><div className="font-bold text-red-400 text-left">Borrar Todo</div><div className="text-xs text-red-400/70">Reset de fábrica</div></div>
@@ -247,37 +249,7 @@ const SettingsModal = ({ isOpen, onClose, onOpenInstall, fullData, onImport }) =
     );
 };
 
-const InstallGuide = ({ isOpen, onClose }) => {
-    if (!isOpen) return null;
-    return (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-[80] flex items-center justify-center p-6">
-            <div className="bg-slate-900 border border-slate-700 p-6 rounded-2xl w-full max-w-sm shadow-2xl relative">
-                <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-white"><X/></button>
-                <div className="flex flex-col items-center text-center">
-                    <div className="bg-blue-600 p-4 rounded-2xl mb-4 shadow-lg shadow-blue-500/20">
-                        <Smartphone size={48} className="text-white"/>
-                    </div>
-                    <h2 className="text-xl font-bold text-white mb-2">Instalar App</h2>
-                    <p className="text-sm text-slate-400 mb-6">Para usar esto como una App nativa:</p>
-                    
-                    <div className="space-y-4 text-left w-full bg-slate-800/50 p-4 rounded-xl">
-                         <div className="text-sm text-slate-300">
-                             1. Abre el enlace en <strong>Chrome</strong> (Android) o <strong>Safari</strong> (iOS).
-                         </div>
-                         <div className="text-sm text-slate-300">
-                             2. Abre el menú del navegador.
-                         </div>
-                         <div className="text-sm text-slate-300">
-                             3. Toca en <strong>"Instalar aplicación"</strong> o <strong>"Agregar a inicio"</strong>.
-                         </div>
-                    </div>
-                    <button onClick={onClose} className="mt-6 w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl">Entendido</button>
-                </div>
-            </div>
-        </div>
-    );
-};
-
+// --- CREAR EJERCICIO MODAL ---
 const CreateExerciseModal = ({ isOpen, onClose, onCreate, category }) => {
     const [name, setName] = useState('');
     if (!isOpen) return null;
@@ -287,21 +259,58 @@ const CreateExerciseModal = ({ isOpen, onClose, onCreate, category }) => {
                 <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-white"><X/></button>
                 <h2 className="text-lg font-bold mb-1 text-white">Nuevo Ejercicio</h2>
                 <p className="text-xs text-slate-400 mb-4 uppercase tracking-wider">{category}</p>
-                <input 
-                    type="text" 
-                    value={name} 
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Nombre del ejercicio..."
-                    className="w-full bg-slate-800 border border-slate-600 rounded-lg p-3 text-white focus:border-blue-500 outline-none mb-4"
-                    autoFocus
-                />
-                <button 
-                    disabled={!name.trim()}
-                    onClick={() => { onCreate(name, category); setName(''); onClose(); }}
-                    className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 rounded-lg transition-colors"
-                >
-                    Guardar Ejercicio
-                </button>
+                <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre del ejercicio..." className="w-full bg-slate-800 border border-slate-600 rounded-lg p-3 text-white focus:border-blue-500 outline-none mb-4" autoFocus />
+                <button disabled={!name.trim()} onClick={() => { onCreate(name, category); setName(''); onClose(); }} className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 rounded-lg transition-colors">Guardar Ejercicio</button>
+            </div>
+        </div>
+    );
+};
+
+// --- PANTALLA INICIAL (HOME) ---
+const HomeView = ({ lastMeso, lastWeek, lastDay, onStart }) => {
+    return (
+        <div className="min-h-screen bg-slate-950 text-white p-6 flex flex-col justify-center max-w-md mx-auto">
+            <div className="mb-8 text-center">
+                <div className="bg-blue-600/20 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-blue-500">
+                    <Dumbbell size={40} className="text-blue-400" />
+                </div>
+                <h1 className="text-4xl font-black italic tracking-tighter mb-2">RP HYPERTROPHY</h1>
+                <p className="text-slate-400 text-sm">Tu sistema de entrenamiento científico.</p>
+            </div>
+
+            {/* BOTÓN CONTINUAR (SI EXISTE HISTORIAL) */}
+            <button 
+                onClick={() => onStart(lastMeso, lastWeek, lastDay)}
+                className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 rounded-2xl shadow-xl shadow-blue-900/30 hover:scale-[1.02] transition-transform mb-8 text-left relative overflow-hidden group"
+            >
+                <div className="absolute top-0 right-0 bg-white/10 p-2 rounded-bl-2xl">
+                    <ArrowRightCircle size={24} className="text-white/80" />
+                </div>
+                <div className="text-xs font-bold text-blue-200 uppercase tracking-widest mb-1">Continuar Entrenamiento</div>
+                <div className="text-2xl font-black text-white flex items-center gap-2">
+                    {MESOCYCLES.find(m => m.id === lastMeso)?.name.split(':')[0] || 'Meso 1'} 
+                    <span className="text-lg opacity-80 font-normal">/ Sem {lastWeek}</span>
+                </div>
+                <div className="text-sm text-blue-100 mt-2 flex items-center gap-1">
+                    <Calendar size={14} /> Día {lastDay}
+                </div>
+            </button>
+
+            <div className="space-y-4">
+                <h3 className="text-sm font-bold text-slate-500 uppercase tracking-widest pl-2">Seleccionar Fase</h3>
+                {MESOCYCLES.map(m => (
+                    <button 
+                        key={m.id}
+                        onClick={() => onStart(m.id, 1, 1)}
+                        className="w-full bg-slate-900 border border-slate-800 p-4 rounded-xl flex items-center justify-between hover:border-slate-600 transition-colors group"
+                    >
+                        <div className="text-left">
+                            <div className="font-bold text-slate-200 group-hover:text-blue-400 transition-colors">{m.name}</div>
+                            <div className="text-xs text-slate-500">{m.desc}</div>
+                        </div>
+                        <ChevronRight size={20} className="text-slate-600 group-hover:text-white" />
+                    </button>
+                ))}
             </div>
         </div>
     );
@@ -311,8 +320,8 @@ const CreateExerciseModal = ({ isOpen, onClose, onCreate, category }) => {
 
 export default function RPApp() {
   const [loading, setLoading] = useState(true);
+  const [view, setView] = useState('home'); // 'home' | 'app'
   const [showSettings, setShowSettings] = useState(false);
-  const [showInstallGuide, setShowInstallGuide] = useState(false);
   
   const [activeMeso, setActiveMeso] = useState('meso1');
   const [activeWeek, setActiveWeek] = useState(1);
@@ -326,7 +335,6 @@ export default function RPApp() {
   const [userSupersets, setUserSupersets] = useState({});
   const [customExercises, setCustomExercises] = useState([]);
 
-  // Load Data on Mount
   useEffect(() => {
       const data = getStoredData();
       setFullData(data);
@@ -335,13 +343,35 @@ export default function RPApp() {
       setUserStructure(data.settings?.structure || {});
       setUserSupersets(data.settings?.supersets || {});
       setCustomExercises(data.settings?.exercises || []);
+      
+      // Load last state if exists
+      if(data.settings?.lastState) {
+          setActiveMeso(data.settings.lastState.meso || 'meso1');
+          setActiveWeek(data.settings.lastState.week || 1);
+          setActiveDay(data.settings.lastState.day || 1);
+      }
+      
       setLoading(false);
   }, []);
 
-  // Sync Helper
   const updateStorage = (newData) => {
       setFullData(newData);
       saveData(newData);
+  };
+
+  const handleStartApp = (meso, week, day) => {
+      setActiveMeso(meso);
+      setActiveWeek(week);
+      setActiveDay(day);
+      setView('app');
+  };
+
+  const saveCurrentState = (meso, week, day) => {
+      const newSettings = { 
+          ...fullData.settings, 
+          lastState: { meso, week, day } 
+      };
+      updateStorage({ ...fullData, settings: newSettings });
   };
 
   const handleImportData = (importedData) => {
@@ -353,7 +383,26 @@ export default function RPApp() {
       setCustomExercises(importedData.settings?.exercises || []);
   };
 
-  // Handlers
+  // --- CONFETI SIMPLE ---
+  const triggerConfetti = () => {
+    const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+    for (let i = 0; i < 100; i++) {
+        const conf = document.createElement('div');
+        Object.assign(conf.style, {
+            position: 'fixed', top: '50%', left: '50%', width: '8px', height: '8px',
+            backgroundColor: colors[Math.floor(Math.random() * colors.length)],
+            borderRadius: '50%', zIndex: '9999', pointerEvents: 'none'
+        });
+        document.body.appendChild(conf);
+        const angle = Math.random() * Math.PI * 2;
+        const velocity = 2 + Math.random() * 4;
+        conf.animate([
+            { transform: 'translate(0, 0) scale(1)', opacity: 1 },
+            { transform: `translate(${Math.cos(angle) * velocity * 100}px, ${Math.sin(angle) * velocity * 100}px) scale(0)`, opacity: 0 }
+        ], { duration: 1000 + Math.random() * 1000 }).onfinish = () => conf.remove();
+    }
+  };
+
   const handleExerciseSelect = (day, slotIndex, exercise) => {
     const docId = `${activeMeso}_day_${day}`;
     const currentDayPlan = planData[docId] || { exercises: {} };
@@ -365,8 +414,10 @@ export default function RPApp() {
   const handleLogUpdate = (exerciseName, field, value) => {
     const logId = `${activeMeso}_w${activeWeek}_d${activeDay}`;
     const currentLog = logData[logId] || { exercises: {} };
-    const currentEx = currentLog.exercises?.[exerciseName] || { sets: 2, weight: '', reps: '', rating: 0 };
-    const newLogs = { ...logData, [logId]: { exercises: { ...currentLog.exercises, [exerciseName]: { ...currentEx, [field]: value } } } };
+    const currentEx = currentLog.exercises?.[exerciseName] || { series: [], rating: 0 };
+    let updatedEx = { ...currentEx };
+    if (field === 'series') { updatedEx.series = value; } else { updatedEx[field] = value; }
+    const newLogs = { ...logData, [logId]: { exercises: { ...currentLog.exercises, [exerciseName]: updatedEx } } };
     setLogData(newLogs);
     updateStorage({ ...fullData, logs: newLogs });
   };
@@ -399,7 +450,6 @@ export default function RPApp() {
       updateStorage({ ...fullData, settings: newSettings });
   };
 
-  // Logic
   const currentMesoConfig = MESOCYCLES.find(m => m.id === activeMeso);
   const isDeload = activeWeek === currentMesoConfig?.deloadWeek;
   const targetRIR = getTargetRIR(activeWeek, isDeload);
@@ -412,18 +462,30 @@ export default function RPApp() {
 
   if (loading) return <div className="h-screen w-full flex items-center justify-center bg-slate-950 text-blue-400 font-mono animate-pulse">CARGANDO...</div>;
 
+  // --- VISTA: HOME ---
+  if (view === 'home') {
+      return (
+          <HomeView 
+            lastMeso={activeMeso} 
+            lastWeek={activeWeek} 
+            lastDay={activeDay} 
+            onStart={handleStartApp} 
+          />
+      );
+  }
+
+  // --- VISTA: APP ENTRENAMIENTO ---
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans pb-32 selection:bg-blue-500 selection:text-white">
+    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans pb-40 selection:bg-blue-500 selection:text-white">
       
       <header className="bg-slate-900/80 backdrop-blur-md border-b border-slate-800 p-4 sticky top-0 z-20 shadow-2xl">
         <div className="flex flex-col gap-3 max-w-2xl mx-auto">
           <div className="flex justify-between items-center">
-            <h1 className="text-xl font-black italic tracking-tighter text-blue-500 flex items-center gap-2">
-              <Dumbbell className="w-6 h-6" />
-              RP HYPERTROPHY <span className="text-[10px] bg-slate-700 text-slate-300 px-1 rounded not-italic font-normal">OFFLINE</span>
-            </h1>
+            <button onClick={() => setView('home')} className="flex items-center gap-2 text-slate-400 hover:text-white">
+                <ChevronRight className="rotate-180" size={20}/> <span className="text-xs font-bold uppercase tracking-widest">Inicio</span>
+            </button>
             <div className="flex items-center gap-2">
-                {activeMeso === 'meso3' && <span className="text-[10px] bg-purple-500 text-white font-black px-2 py-0.5 rounded uppercase tracking-widest">METABOLITE</span>}
+                <span className="text-xl font-black italic tracking-tighter text-blue-500">RP</span>
                 {isDeload && <span className="text-[10px] bg-green-500 text-black font-black px-2 py-0.5 rounded uppercase tracking-widest animate-pulse">DELOAD</span>}
                 <button onClick={() => setShowSettings(true)} className="p-2 bg-slate-800 rounded-full text-slate-400 hover:text-white hover:bg-slate-700 transition-colors">
                     <Menu size={20}/>
@@ -432,13 +494,37 @@ export default function RPApp() {
           </div>
           
           <div className="grid grid-cols-[1.5fr_1fr_1fr] gap-2">
-            <select value={activeMeso} onChange={(e) => { setActiveMeso(e.target.value); setActiveWeek(1); }} className="bg-slate-800 text-sm py-2 px-3 rounded-lg border border-slate-700 text-slate-200 outline-none focus:border-blue-500 transition-colors">
+            <select 
+                value={activeMeso} 
+                onChange={(e) => { 
+                    setActiveMeso(e.target.value); 
+                    setActiveWeek(1); 
+                    saveCurrentState(e.target.value, 1, activeDay);
+                }} 
+                className="bg-slate-800 text-sm py-2 px-3 rounded-lg border border-slate-700 text-slate-200 outline-none focus:border-blue-500 transition-colors"
+            >
               {MESOCYCLES.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
             </select>
-            <select value={activeWeek} onChange={(e) => setActiveWeek(Number(e.target.value))} className={`text-sm py-2 px-1 rounded-lg border outline-none font-bold text-center ${isDeload ? 'bg-green-900/30 border-green-700 text-green-400' : 'bg-slate-800 border-slate-700'}`}>
+            <select 
+                value={activeWeek} 
+                onChange={(e) => {
+                    const w = Number(e.target.value);
+                    setActiveWeek(w);
+                    saveCurrentState(activeMeso, w, activeDay);
+                }} 
+                className={`text-sm py-2 px-1 rounded-lg border outline-none font-bold text-center ${isDeload ? 'bg-green-900/30 border-green-700 text-green-400' : 'bg-slate-800 border-slate-700'}`}
+            >
               {Array.from({length: currentMesoConfig.weeks}).map((_, i) => <option key={i+1} value={i+1}>Sem {i+1}</option>)}
             </select>
-            <select value={activeDay} onChange={(e) => setActiveDay(Number(e.target.value))} className="bg-slate-800 text-sm py-2 px-1 rounded-lg border border-slate-700 text-center outline-none focus:border-blue-500">
+            <select 
+                value={activeDay} 
+                onChange={(e) => {
+                    const d = Number(e.target.value);
+                    setActiveDay(d);
+                    saveCurrentState(activeMeso, activeWeek, d);
+                }} 
+                className="bg-slate-800 text-sm py-2 px-1 rounded-lg border border-slate-700 text-center outline-none focus:border-blue-500"
+            >
               {[1,2,3,4].map(d => <option key={d} value={d}>Día {d}</option>)}
             </select>
           </div>
@@ -451,12 +537,7 @@ export default function RPApp() {
       </header>
 
       <main className="p-4 max-w-2xl mx-auto space-y-0">
-        {activeWeek === 1 && (
-            <div className="text-xs text-slate-500 text-center italic mb-4">
-                Tip: Toca el lápiz <Edit3 size={10} className="inline"/> para editar Slots. <br/> Toca la cadena <LinkIcon size={10} className="inline"/> para crear Superseries.
-            </div>
-        )}
-
+        
         {dailyCategories.map((category, index) => {
             const slotIndex = index + 1;
             const isLinkedToPrev = activeSupersets.includes(slotIndex);
@@ -476,6 +557,7 @@ export default function RPApp() {
                     )}
 
                     <ExerciseRow 
+                        key={`${activeMeso}_w${activeWeek}_d${activeDay}_s${slotIndex}`} // KEY CRUCIAL PARA FORZAR RENDER AL CAMBIAR SEMANA
                         slot={slotIndex}
                         categoryRequirement={category}
                         day={activeDay}
@@ -497,14 +579,24 @@ export default function RPApp() {
             );
         })}
 
-        <button onClick={() => handleSlotCategoryChange(activeDay, dailyCategories.length + 1, "Abs")} className="w-full py-3 border-2 border-dashed border-slate-800 rounded-xl text-slate-600 font-bold text-sm hover:border-slate-600 hover:text-slate-400 transition-colors mt-6">
-            + AÑADIR SLOT
+        <button onClick={() => handleSlotCategoryChange(activeDay, dailyCategories.length + 1, "Abs")} className="w-full py-3 border-2 border-dashed border-slate-800 rounded-xl text-slate-600 font-bold text-sm hover:border-slate-600 hover:text-slate-400 transition-colors mt-6 mb-8">
+            + AÑADIR SLOT DE EJERCICIO
         </button>
+
+        <div className="pb-12">
+            <button 
+                onClick={() => { triggerConfetti(); alert("¡Entrenamiento Guardado! 💪"); }}
+                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-xl shadow-lg shadow-blue-900/50 flex items-center justify-center gap-3 active:scale-95 transition-all"
+            >
+                <Trophy size={24} className="text-yellow-400" />
+                TERMINAR ENTRENAMIENTO
+            </button>
+        </div>
+
       </main>
 
       <RestTimer />
-      <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} onOpenInstall={() => setShowInstallGuide(true)} fullData={fullData} onImport={handleImportData}/>
-      <InstallGuide isOpen={showInstallGuide} onClose={() => setShowInstallGuide(false)}/>
+      <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} fullData={fullData} onImport={handleImportData}/>
 
       <details className="fixed bottom-0 left-0 right-0 bg-slate-950 border-t border-slate-800 z-50 group shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
         <summary className="list-none flex justify-between items-center px-6 py-4 cursor-pointer text-slate-300 font-semibold hover:bg-slate-900 transition-colors">
@@ -527,7 +619,7 @@ export default function RPApp() {
   );
 }
 
-// --- ROW COMPONENT ---
+// --- ROW COMPONENT (SERIES) ---
 function ExerciseRow({ 
     slot, categoryRequirement, day, meso, week, 
     planData, logData, exerciseDB,
@@ -542,18 +634,60 @@ function ExerciseRow({
   const exercise = planData[planId]?.exercises?.[slot];
   
   const logId = `${meso}_w${week}_d${day}`;
-  const currentLog = logData[logId]?.exercises?.[exercise?.name] || { sets: 2, weight: '', reps: '', rating: 0 };
+  const currentData = logData[logId]?.exercises?.[exercise?.name] || {};
+  const currentRating = currentData.rating !== undefined ? currentData.rating : 99; 
+  
+  // LOGIC CORREGIDA: Si no hay datos (semana nueva), inicializamos series vacías (pero con la cantidad correcta)
+  const defaultSetCount = INITIAL_SETS_CONFIG[categoryRequirement] || 2;
+  // IMPORTANTE: Si currentData.series no existe, creamos nuevas vacías. Esto soluciona el bug de "se mantiene igual".
+  const initialSets = currentData.series || Array(defaultSetCount).fill({ weight: '', reps: '', done: false });
+  
+  const [localSeries, setLocalSeries] = useState(initialSets);
+
+  // Efecto crítico: Cuando cambiamos de semana (cambia logId), actualizamos el estado local
+  useEffect(() => {
+      if (currentData.series) {
+          // Si ya guardamos algo esta semana, lo cargamos
+          setLocalSeries(currentData.series);
+      } else {
+          // Si es una semana nueva y virgen, reseteamos a blanco
+          setLocalSeries(Array(defaultSetCount).fill({ weight: '', reps: '', done: false }));
+      }
+  }, [logId, exercise?.name]); // Depender de logId asegura que al cambiar semana se ejecute
+
+  const updateSet = (index, field, value) => {
+      const newSeries = [...localSeries];
+      newSeries[index] = { ...newSeries[index], [field]: value };
+      setLocalSeries(newSeries);
+      onLogUpdate(exercise?.name, 'series', newSeries);
+  };
+
+  const addSet = () => {
+      const lastSet = localSeries[localSeries.length - 1] || { weight: '', reps: '' };
+      const newSeries = [...localSeries, { weight: lastSet.weight, reps: lastSet.reps, done: false }];
+      setLocalSeries(newSeries);
+      onLogUpdate(exercise?.name, 'series', newSeries);
+  };
+
+  const removeSet = () => {
+      if (localSeries.length <= 1) return;
+      const newSeries = localSeries.slice(0, -1);
+      setLocalSeries(newSeries);
+      onLogUpdate(exercise?.name, 'series', newSeries);
+  };
+
   const prevLog = logData[`${meso}_w${week - 1}_d${day}`]?.exercises?.[exercise?.name];
 
   const suggestion = useMemo(() => {
     if (week === 1) return "Busca tu 10RM sólido";
     if (!prevLog) return "N/A";
     if (isDeload) return "50% Carga / 50% Sets";
-    if (prevLog.rating === 1) return `+2.5kg O +1 Rep`;
-    if (prevLog.rating === 2) return `+5kg O +2 Reps`;
-    if (prevLog.rating === 0) return `Mismo peso y reps`;
-    if (prevLog.rating === -1) return `Mismo peso, menos reps?`;
-    if (prevLog.rating === -2) return `Baja peso (-10%)`;
+    const lastRating = prevLog.rating;
+    if (lastRating === 1) return `+2.5kg O +1 Rep`;
+    if (lastRating === 2) return `+5kg O +2 Reps`;
+    if (lastRating === 0) return `Mismo peso y reps`;
+    if (lastRating === -1) return `Mismo peso, menos reps?`;
+    if (lastRating === -2) return `Baja peso (-10%)`;
     return `Mejora la semana anterior`;
   }, [week, prevLog, isDeload]);
 
@@ -605,7 +739,6 @@ function ExerciseRow({
              <option value="">-- Seleccionar {categoryRequirement} --</option>
              {filteredExercises.map(ex => <option key={ex.name} value={ex.name}>{ex.isCustom ? '👤 ' : ''}{ex.name}</option>)}
            </select>
-           
            <div className="flex gap-2">
                <button onClick={() => setShowCreateModal(true)} className="flex-1 bg-green-900/20 text-green-400 hover:bg-green-900/40 border border-green-900 hover:border-green-700 rounded-lg py-2 text-xs font-bold flex items-center justify-center gap-1 transition-all">
                     <Plus size={14}/> Crear Nuevo
@@ -632,38 +765,41 @@ function ExerciseRow({
       </div>
       {week > 1 && !isDeload && (
         <div className="flex justify-between items-center bg-gradient-to-r from-blue-900/20 to-transparent border-l-2 border-blue-500 rounded-r-lg p-2 mb-4">
-           <div className="text-xs text-slate-400"><span className="block mb-0.5 uppercase text-[10px] tracking-wider">Historial</span><span className="font-mono text-white text-sm">{prevLog ? `${prevLog.weight}kg × ${prevLog.reps}` : '-'}</span></div>
+           <div className="text-xs text-slate-400"><span className="block mb-0.5 uppercase text-[10px] tracking-wider">Historial</span><span className="font-mono text-white text-sm">{prevLog ? `${prevLog.series?.[0]?.weight || prevLog.weight}kg` : '-'}</span></div>
            <div className="text-right"><span className="block text-[10px] text-blue-400 uppercase font-bold tracking-wider">Objetivo</span><span className="text-sm font-bold text-blue-200">{suggestion}</span></div>
         </div>
       )}
-      <div className="grid grid-cols-[1fr_1fr_0.8fr] gap-3 mb-4">
-          <div className="relative group">
-            <label className="absolute -top-2 left-2 bg-slate-950 px-1 text-[10px] text-slate-500 group-focus-within:text-blue-400 transition-colors">PESO (KG)</label>
-            <input type="number" inputMode="decimal" value={currentLog.weight} onChange={(e) => onLogUpdate(exercise.name, 'weight', e.target.value)} placeholder="0" className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 pt-4 text-center font-black text-xl text-white outline-none focus:border-blue-500 transition-colors placeholder:text-slate-700"/>
+      
+      <div className="space-y-2 mb-4">
+          <div className="grid grid-cols-[0.5fr_1.5fr_1.5fr_0.5fr] gap-2 px-2 text-[10px] text-slate-500 font-bold uppercase tracking-wider text-center">
+              <div>Set</div>
+              <div>Kg</div>
+              <div>Reps</div>
+              <div>✔</div>
           </div>
-          <div className="relative group">
-            <label className="absolute -top-2 left-2 bg-slate-950 px-1 text-[10px] text-slate-500 group-focus-within:text-blue-400 transition-colors">REPS</label>
-            <input type="number" inputMode="numeric" value={currentLog.reps} onChange={(e) => onLogUpdate(exercise.name, 'reps', e.target.value)} placeholder="0" className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 pt-4 text-center font-black text-xl text-white outline-none focus:border-blue-500 transition-colors placeholder:text-slate-700"/>
-          </div>
-          <div className="flex flex-col justify-end h-full">
-            <div className="flex flex-col items-center bg-slate-900 border border-slate-700 rounded-lg h-[62px] overflow-hidden">
-                 <button className="flex-1 w-full hover:bg-slate-800 text-slate-400 active:bg-slate-700 transition-colors" onClick={() => onLogUpdate(exercise.name, 'sets', (currentLog.sets||2)+1)}>+</button>
-                 <span className="text-xs font-bold text-blue-400 bg-slate-950 w-full text-center py-0.5 z-10">{currentLog.sets || 2} SETS</span>
-                 <button className="flex-1 w-full hover:bg-slate-800 text-slate-400 active:bg-slate-700 transition-colors" onClick={() => onLogUpdate(exercise.name, 'sets', Math.max(1, (currentLog.sets||2)-1))}>-</button>
-            </div>
+          {localSeries.map((set, idx) => (
+              <div key={idx} className={`grid grid-cols-[0.5fr_1.5fr_1.5fr_0.5fr] gap-2 items-center ${set.done ? 'opacity-50' : ''} transition-all`}>
+                  <div className="flex items-center justify-center"><div className="w-6 h-6 rounded-full bg-slate-700 text-xs flex items-center justify-center text-slate-300 font-bold">{idx + 1}</div></div>
+                  <input type="number" inputMode="decimal" placeholder="-" value={set.weight} onChange={(e) => updateSet(idx, 'weight', e.target.value)} className={`w-full bg-slate-900 border ${set.done ? 'border-green-900 text-green-500' : 'border-slate-700 text-white'} rounded-lg py-2 text-center font-bold outline-none focus:border-blue-500 transition-colors`}/>
+                  <input type="number" inputMode="numeric" placeholder="-" value={set.reps} onChange={(e) => updateSet(idx, 'reps', e.target.value)} className={`w-full bg-slate-900 border ${set.done ? 'border-green-900 text-green-500' : 'border-slate-700 text-white'} rounded-lg py-2 text-center font-bold outline-none focus:border-blue-500 transition-colors`}/>
+                  <button onClick={() => updateSet(idx, 'done', !set.done)} className={`w-full h-full flex items-center justify-center rounded-lg border transition-all ${set.done ? 'bg-green-500 border-green-500 text-black' : 'bg-slate-800 border-slate-600 text-slate-500 hover:border-slate-400'}`}><Check size={16} strokeWidth={3} /></button>
+              </div>
+          ))}
+          <div className="flex justify-center gap-4 pt-2">
+              <button onClick={addSet} className="text-xs text-blue-400 font-bold flex items-center gap-1 py-1 px-3 rounded hover:bg-blue-900/20 transition-colors"><Plus size={12}/> Añadir Set</button>
+              {localSeries.length > 1 && (<button onClick={removeSet} className="text-xs text-red-400 font-bold flex items-center gap-1 py-1 px-3 rounded hover:bg-red-900/20 transition-colors"><Trash2 size={12}/> Quitar</button>)}
           </div>
       </div>
+
       <div className="mt-2 relative">
-         <select value={currentLog.rating} onChange={(e) => onLogUpdate(exercise.name, 'rating', Number(e.target.value))} className={`w-full p-3 rounded-lg text-sm font-bold border outline-none appearance-none transition-all cursor-pointer ${currentLog.rating === 0 ? 'bg-yellow-500/10 border-yellow-500/50 text-yellow-500' : ''} ${currentLog.rating > 0 ? 'bg-blue-500/10 border-blue-500/50 text-blue-400' : ''} ${currentLog.rating < 0 ? 'bg-red-500/10 border-red-500/50 text-red-400' : ''} ${currentLog.rating === undefined ? 'bg-slate-800 border-slate-700 hover:border-slate-500' : ''}`}>
+         <select value={currentRating} onChange={(e) => onLogUpdate(exercise.name, 'rating', Number(e.target.value))} className={`w-full p-3 rounded-lg text-sm font-bold border outline-none appearance-none transition-all cursor-pointer ${currentRating === 0 ? 'bg-yellow-500/10 border-yellow-500/50 text-yellow-500' : ''} ${currentRating > 0 ? 'bg-blue-500/10 border-blue-500/50 text-blue-400' : ''} ${currentRating < 0 ? 'bg-red-500/10 border-red-500/50 text-red-400' : ''} ${currentRating === 99 ? 'bg-slate-800 border-slate-700 hover:border-slate-500' : ''}`}>
             <option value="99" disabled>Evaluar Recuperación...</option>
             {RATING_GUIDE.map(r => <option key={r.val} value={r.val} className="bg-slate-900 text-slate-300 py-2">{r.label}</option>)}
          </select>
          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500">
-            {currentLog.rating !== undefined && currentLog.rating !== 99 && <Check size={16} />}
+            {currentRating !== 99 && <CheckCircle2 size={16} />}
          </div>
       </div>
     </Card>
   );
 }
-
-
