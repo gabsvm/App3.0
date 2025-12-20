@@ -40,7 +40,7 @@ const RATING_GUIDE = [
   { val: -2, label: "-2 - Rendimiento bajó", color: "bg-red-100 text-red-800" }
 ];
 
-const STORAGE_KEY = 'rp_hypertrophy_data_v7';
+const STORAGE_KEY = 'rp_hypertrophy_data_v8';
 
 // --- DATA MANAGER ---
 const getStoredData = () => {
@@ -54,12 +54,120 @@ const getStoredData = () => {
 };
 
 const saveData = (newData: any) => {
-    try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(newData));
-    } catch (e) { console.error("Error saving", e); }
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(newData)); } catch(e){}
 };
 
-// --- COMPONENTES UI ---
+// --- COMPONENTE TIMER BACKGROUND (NUEVO) ---
+const RestTimer = () => {
+    const [elapsed, setElapsed] = useState(0);
+    const [isActive, setIsActive] = useState(false);
+    const [isMinimized, setIsMinimized] = useState(true); // Empieza minimizado para no estorbar
+
+    // Al montar, chequear si había un timer corriendo
+    useEffect(() => {
+        const storedStartTime = localStorage.getItem('timer_start_time');
+        if (storedStartTime) {
+            setIsActive(true);
+            // Calcular tiempo trascurrido inmediatamente
+            const start = parseInt(storedStartTime, 10);
+            const now = Date.now();
+            setElapsed(Math.floor((now - start) / 1000));
+        }
+    }, []);
+
+    // Loop del reloj (ahora sincroniza con el tiempo real, no suma 1 a 1)
+    useEffect(() => {
+        let interval: any = null;
+        if (isActive) {
+            interval = setInterval(() => {
+                const storedStartTime = localStorage.getItem('timer_start_time');
+                if (storedStartTime) {
+                    const start = parseInt(storedStartTime, 10);
+                    const now = Date.now();
+                    setElapsed(Math.floor((now - start) / 1000));
+                }
+            }, 1000);
+        } else {
+            clearInterval(interval);
+        }
+        return () => clearInterval(interval);
+    }, [isActive]);
+
+    const toggleTimer = () => {
+        if (isActive) {
+            // Pausar (Detener y borrar timestamp)
+            setIsActive(false);
+            localStorage.removeItem('timer_start_time');
+            setElapsed(0); // Opcional: resetear a 0 al pausar, o mantener valor visual
+        } else {
+            // Iniciar
+            const now = Date.now();
+            localStorage.setItem('timer_start_time', now.toString());
+            setIsActive(true);
+            setElapsed(0);
+            setIsMinimized(false); // Mostrar grande al iniciar
+        }
+    };
+
+    const resetTimer = () => {
+        setIsActive(false);
+        setElapsed(0);
+        localStorage.removeItem('timer_start_time');
+    };
+
+    const formatTime = (sec: number) => {
+        const mins = Math.floor(sec / 60);
+        const s = sec % 60;
+        return `${mins}:${s < 10 ? '0' : ''}${s}`;
+    };
+
+    const getTimerColor = () => {
+        if (elapsed < 90) return "text-white"; // < 1:30
+        if (elapsed < 180) return "text-blue-400"; // 1:30 - 3:00 (Hipertrofia óptima)
+        return "text-red-400"; // > 3:00 (Enfriándose)
+    };
+
+    // VISTA MINIMIZADA (Botón flotante)
+    if (isMinimized) {
+        return (
+            <button 
+                onClick={() => setIsMinimized(false)}
+                className={`fixed bottom-24 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-full shadow-2xl transition-all border border-slate-700 ${isActive ? 'bg-blue-900/90 border-blue-500 animate-pulse' : 'bg-slate-800'}`}
+            >
+                <Timer size={20} className={isActive ? "text-blue-200" : "text-white"}/>
+                {isActive && <span className="font-mono font-bold text-white">{formatTime(elapsed)}</span>}
+            </button>
+        );
+    }
+
+    // VISTA EXPANDIDA
+    return (
+        <div className="fixed bottom-24 right-4 z-50 bg-slate-900 border border-slate-600 p-4 rounded-2xl shadow-2xl w-52 animate-in slide-in-from-bottom-5">
+            <div className="flex justify-between items-center mb-2">
+                <span className="text-[10px] text-slate-400 uppercase font-bold tracking-widest flex items-center gap-1">
+                    {isActive ? <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"/> : null}
+                    Descanso
+                </span>
+                <button onClick={() => setIsMinimized(true)} className="p-1 hover:bg-slate-800 rounded"><X size={16} className="text-slate-400"/></button>
+            </div>
+            
+            <div className={`text-5xl font-mono font-black text-center py-2 tracking-tighter tabular-nums ${getTimerColor()}`}>
+                {formatTime(elapsed)}
+            </div>
+            
+            <div className="flex justify-center gap-4 mt-2">
+                <button onClick={resetTimer} className="p-3 bg-slate-800 rounded-full text-slate-300 hover:bg-slate-700 transition-colors">
+                    <RotateCcw size={18} />
+                </button>
+                <button onClick={toggleTimer} className={`p-3 rounded-full text-white shadow-lg transition-transform active:scale-95 ${isActive ? 'bg-amber-600' : 'bg-blue-600'}`}>
+                    {isActive ? <Pause size={24} fill="currentColor"/> : <Play size={24} fill="currentColor" className="ml-1"/>}
+                </button>
+            </div>
+        </div>
+    );
+};
+
+// --- COMPONENTES UI RESTANTES ---
 
 const SetRow = ({ index, set, onUpdate, onToggle }: any) => {
     const [weight, setWeight] = useState(set.weight);
@@ -111,7 +219,7 @@ const PlanEditor = ({ isOpen, onClose, onSave, categories }: any) => {
                 <div className="space-y-6">
                     <div className="space-y-4 bg-slate-900 p-4 rounded-xl border border-slate-800">
                         <div><label className="text-xs text-slate-400 font-bold uppercase mb-1 block">Nombre</label><input value={name} onChange={e => setName(e.target.value)} placeholder="Ej: Especialización Pecho" className="w-full bg-slate-800 border border-slate-600 rounded-lg p-3 text-white focus:border-blue-500 outline-none text-lg font-bold"/></div>
-                        <div><label className="text-xs text-slate-400 font-bold uppercase mb-1 block">Descripción</label><textarea value={desc} onChange={e => setDesc(e.target.value)} placeholder="Objetivo del plan..." className="w-full bg-slate-800 border border-slate-600 rounded-lg p-3 text-white focus:border-blue-500 outline-none h-20 text-sm"/></div>
+                        <div><label className="text-xs text-slate-400 font-bold uppercase mb-1 block">Descripción</label><textarea value={desc} onChange={e => setDesc(e.target.value)} placeholder="Objetivo..." className="w-full bg-slate-800 border border-slate-600 rounded-lg p-3 text-white focus:border-blue-500 outline-none h-20 text-sm"/></div>
                         <div>
                             <label className="text-xs text-slate-400 font-bold uppercase mb-1 block">Días / Semana</label>
                             <div className="flex gap-2 overflow-x-auto">{[2,3,4,5,6].map(d => (<button key={d} onClick={() => setDaysCount(d)} className={`flex-1 py-2 px-4 rounded-lg font-bold transition-all ${daysCount === d ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>{d} D</button>))}</div>
@@ -158,16 +266,81 @@ const PlansView = ({ programs, onSelect, onCreate, onDelete }: any) => {
                         <button onClick={() => onSelect(plan.id)} className="mt-4 w-full bg-blue-600/10 text-blue-400 border border-blue-600/20 py-2 rounded-lg font-bold text-sm hover:bg-blue-600 hover:text-white transition-all flex items-center justify-center gap-2">Entrenar <ArrowRight size={16}/></button>
                     </div>
                 ))}
-                {programs.length === 0 && <div className="text-center py-10 opacity-50"><Dumbbell size={48} className="mx-auto mb-4 text-slate-600"/><p>No tienes planes.</p></div>}
                 <button onClick={onCreate} className="w-full py-4 border-2 border-dashed border-slate-700 rounded-xl text-slate-400 font-bold hover:border-blue-500 hover:text-blue-400 transition-colors flex flex-col items-center gap-2"><Plus size={24}/> Crear Nuevo Plan</button>
             </div>
         </div>
     );
 };
 
+// --- APP CONTROLLER ---
+export default function RPApp() {
+  const [loading, setLoading] = useState(true);
+  const [view, setView] = useState<'plans' | 'app'>('plans');
+  const [data, setData] = useState<any>({ programs: [], activeProgramId: null, settings: {} });
+  const [activeMeso, setActiveMeso] = useState('meso1');
+  const [activeWeek, setActiveWeek] = useState(1);
+  const [activeDay, setActiveDay] = useState(1);
+  const [customExercises, setCustomExercises] = useState<any[]>([]);
+  const [customCategories, setCustomCategories] = useState<string[]>([]);
+  const [showPlanEditor, setShowPlanEditor] = useState(false);
+
+  useEffect(() => {
+      const stored = getStoredData();
+      setData(stored);
+      setCustomExercises(stored.settings?.exercises || []);
+      setCustomCategories(stored.settings?.categories || []);
+      setLoading(false);
+  }, []);
+
+  const updateGlobalData = (newData: any) => { setData(newData); saveData(newData); };
+  const handleCreatePlan = (newPlan: any) => { const updatedPrograms = [...data.programs, newPlan]; updateGlobalData({ ...data, programs: updatedPrograms }); };
+  const handleDeletePlan = (planId: string) => { const updatedPrograms = data.programs.filter((p: any) => p.id !== planId); updateGlobalData({ ...data, programs: updatedPrograms }); if (data.activeProgramId === planId) setView('plans'); };
+  const handleSelectPlan = (planId: string) => { updateGlobalData({ ...data, activeProgramId: planId }); setView('app'); };
+  
+  const activeProgram = data.programs.find((p: any) => p.id === data.activeProgramId);
+  const updateActiveProgram = (field: string, value: any) => {
+      if (!activeProgram) return;
+      const updatedProgram = { ...activeProgram };
+      if (field.includes('.')) { const [root, key] = field.split('.'); updatedProgram[root] = { ...updatedProgram[root], [key]: value }; } 
+      else { updatedProgram[field] = value; }
+      const updatedPrograms = data.programs.map((p: any) => p.id === activeProgram.id ? updatedProgram : p);
+      updateGlobalData({ ...data, programs: updatedPrograms });
+  };
+
+  const EXERCISE_DB_DEFAULT = [
+      { category: "Vertical Pull", name: "Assisted Overhand Pullup" }, { category: "Vertical Pull", name: "Lat Pulldown" },
+      { category: "Horizontal Push", name: "Flat Barbell Bench Press" }, { category: "Horizontal Push", name: "Pushups" },
+      { category: "Quads", name: "Squat" }, { category: "Quads", name: "Leg Press" },
+      { category: "Hamstrings", name: "Lying Leg Curl" }, { category: "Side Delts", name: "Dumbbell Side Lateral Raise" },
+  ];
+  const allExercises = useMemo(() => [...EXERCISE_DB_DEFAULT, ...customExercises], [customExercises]);
+  const allCategories = useMemo(() => [...DEFAULT_CATEGORIES, ...customCategories], [customCategories]);
+
+  const handleCreateExerciseGlobal = (name: string, category: string) => {
+      const newEx = { name, category, isCustom: true };
+      const newExercises = [...customExercises, newEx];
+      let newCats = [...customCategories];
+      if(!DEFAULT_CATEGORIES.includes(category) && !customCategories.includes(category)) { newCats.push(category); }
+      setCustomExercises(newExercises); setCustomCategories(newCats);
+      updateGlobalData({ ...data, settings: { ...data.settings, exercises: newExercises, categories: newCats } });
+  };
+
+  if (loading) return <div className="h-screen bg-slate-950 flex items-center justify-center text-blue-500">Cargando...</div>;
+
+  if (view === 'plans') return (<> <PlansView programs={data.programs} onSelect={handleSelectPlan} onCreate={() => setShowPlanEditor(true)} onDelete={handleDeletePlan} /> <PlanEditor isOpen={showPlanEditor} onClose={() => setShowPlanEditor(false)} onSave={handleCreatePlan} categories={allCategories}/> <RestTimer /> </>);
+
+  return (
+      <WorkoutView 
+          program={activeProgram} onUpdateProgram={updateActiveProgram} onBack={() => setView('plans')}
+          exerciseDB={allExercises} allCategories={allCategories} onCreateExercise={handleCreateExerciseGlobal}
+          activeMeso={activeMeso} setActiveMeso={setActiveMeso} activeWeek={activeWeek} setActiveWeek={setActiveWeek} activeDay={activeDay} setActiveDay={setActiveDay}
+      />
+  );
+}
+
 const WorkoutView = ({ program, onUpdateProgram, onBack, exerciseDB, allCategories, onCreateExercise, activeMeso, setActiveMeso, activeWeek, setActiveWeek, activeDay, setActiveDay }: any) => {
     const [showCreateModal, setShowCreateModal] = useState(false);
-    
+    const [showDocs, setShowDocs] = useState(false);
     if (!program) return <div>Error: No hay plan activo</div>;
 
     const dailySlots = program.structure[activeDay] || [];
@@ -199,12 +372,19 @@ const WorkoutView = ({ program, onUpdateProgram, onBack, exerciseDB, allCategori
         onUpdateProgram('structure', newStructure);
     };
 
+    const triggerConfetti = () => {
+        alert("¡Entrenamiento Guardado! 💪");
+    };
+
     return (
         <div className="min-h-screen bg-slate-950 text-slate-100 font-sans pb-40">
             <header className="bg-slate-900 border-b border-slate-800 p-4 sticky top-0 z-20 shadow-xl">
                 <div className="flex justify-between items-center mb-4">
                     <button onClick={onBack} className="flex items-center gap-2 text-slate-400 hover:text-white"><ChevronRight className="rotate-180" size={20}/> <span className="font-bold text-xs uppercase tracking-widest truncate max-w-[150px]">{program.name}</span></button>
-                    <div className="flex gap-2">{isDeload && <span className="text-[10px] bg-green-500 text-black font-black px-2 py-1 rounded animate-pulse">DELOAD</span>}</div>
+                    <div className="flex gap-2">
+                        {isDeload && <span className="text-[10px] bg-green-500 text-black font-black px-2 py-1 rounded animate-pulse">DELOAD</span>}
+                        <button onClick={() => setShowDocs(true)}><BookOpen className="text-blue-500"/></button>
+                    </div>
                 </div>
                 <div className="grid grid-cols-[1.5fr_1fr_1fr] gap-2">
                     <select value={activeMeso} onChange={e => { setActiveMeso(e.target.value); setActiveWeek(1); }} className="bg-slate-800 text-sm p-2 rounded border border-slate-700 outline-none">{MESOCYCLES.map(m => <option key={m.id} value={m.id}>{m.name.split(':')[0]}</option>)}</select>
@@ -223,7 +403,13 @@ const WorkoutView = ({ program, onUpdateProgram, onBack, exerciseDB, allCategori
                     />
                 ))}
             </main>
+            
+            <button onClick={() => handleSlotChange(allCategories[0], dailySlots.length)} className="w-[90%] mx-auto block py-3 border-2 border-dashed border-slate-800 rounded-xl text-slate-600 font-bold text-sm hover:border-slate-600 hover:text-slate-400 transition-colors mt-6 mb-8">+ AÑADIR SLOT DE EJERCICIO</button>
+            <div className="pb-12 px-4"><button onClick={triggerConfetti} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-xl shadow-lg shadow-blue-900/50 flex items-center justify-center gap-3 active:scale-95 transition-all"><Trophy size={24} className="text-yellow-400" />TERMINAR ENTRENAMIENTO</button></div>
+
             <CreateExerciseModal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} onCreate={onCreateExercise} categories={allCategories} />
+            <RestTimer />
+            <DocsModal isOpen={showDocs} onClose={() => setShowDocs(false)} />
         </div>
     );
 };
@@ -282,88 +468,7 @@ const ExerciseCard = ({ slot, category, day, meso, week, program, onSelectExerci
     );
 };
 
-// --- APP WRAPPER ---
-export default function RPApp() {
-  const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<'plans' | 'app'>('plans');
-  const [data, setData] = useState<any>({ programs: [], activeProgramId: null, settings: {} });
-  const [activeMeso, setActiveMeso] = useState('meso1');
-  const [activeWeek, setActiveWeek] = useState(1);
-  const [activeDay, setActiveDay] = useState(1);
-  const [customExercises, setCustomExercises] = useState<any[]>([]);
-  const [customCategories, setCustomCategories] = useState<string[]>([]);
-
-  useEffect(() => {
-      const stored = getStoredData();
-      setData(stored);
-      setCustomExercises(stored.settings?.exercises || []);
-      setCustomCategories(stored.settings?.categories || []);
-      setLoading(false);
-  }, []);
-
-  const updateGlobalData = (newData: any) => { setData(newData); saveData(newData); };
-  const handleCreatePlan = (newPlan: any) => { const updatedPrograms = [...data.programs, newPlan]; updateGlobalData({ ...data, programs: updatedPrograms }); };
-  const handleDeletePlan = (planId: string) => { const updatedPrograms = data.programs.filter((p: any) => p.id !== planId); updateGlobalData({ ...data, programs: updatedPrograms }); if (data.activeProgramId === planId) setView('plans'); };
-  const handleSelectPlan = (planId: string) => { updateGlobalData({ ...data, activeProgramId: planId }); setView('app'); };
-  
-  const activeProgram = data.programs.find((p: any) => p.id === data.activeProgramId);
-  const updateActiveProgram = (field: string, value: any) => {
-      if (!activeProgram) return;
-      const updatedProgram = { ...activeProgram };
-      if (field.includes('.')) { const [root, key] = field.split('.'); updatedProgram[root] = { ...updatedProgram[root], [key]: value }; } 
-      else { updatedProgram[field] = value; }
-      const updatedPrograms = data.programs.map((p: any) => p.id === activeProgram.id ? updatedProgram : p);
-      updateGlobalData({ ...data, programs: updatedPrograms });
-  };
-
-  const EXERCISE_DB_DEFAULT = [
-      { category: "Vertical Pull", name: "Assisted Overhand Pullup" },
-      { category: "Vertical Pull", name: "Lat Pulldown" },
-      { category: "Horizontal Push", name: "Flat Barbell Bench Press" },
-      { category: "Horizontal Push", name: "Pushups" },
-      { category: "Quads", name: "Squat" },
-      { category: "Quads", name: "Leg Press" },
-      { category: "Hamstrings", name: "Lying Leg Curl" },
-      { category: "Side Delts", name: "Dumbbell Side Lateral Raise" },
-  ];
-  const allExercises = useMemo(() => [...EXERCISE_DB_DEFAULT, ...customExercises], [customExercises]);
-  const allCategories = useMemo(() => [...DEFAULT_CATEGORIES, ...customCategories], [customCategories]);
-
-  const handleCreateExerciseGlobal = (name: string, category: string) => {
-      const newEx = { name, category, isCustom: true };
-      const newExercises = [...customExercises, newEx];
-      let newCats = [...customCategories];
-      if(!DEFAULT_CATEGORIES.includes(category) && !customCategories.includes(category)) { newCats.push(category); }
-      setCustomExercises(newExercises); setCustomCategories(newCats);
-      updateGlobalData({ ...data, settings: { ...data.settings, exercises: newExercises, categories: newCats } });
-  };
-
-  if (loading) return <div className="h-screen bg-slate-950 flex items-center justify-center text-blue-500">Cargando...</div>;
-
-  if (view === 'plans') return (<> <PlansView programs={data.programs} onSelect={handleSelectPlan} onCreate={() => document.getElementById('plan-creator-trigger')?.click()} onDelete={handleDeletePlan} /> <PlanEditorButtonTrigger onSave={handleCreatePlan} categories={allCategories}/></>);
-
-  return (
-      <WorkoutView 
-          program={activeProgram} onUpdateProgram={updateActiveProgram} onBack={() => setView('plans')}
-          exerciseDB={allExercises} allCategories={allCategories} onCreateExercise={handleCreateExerciseGlobal}
-          activeMeso={activeMeso} setActiveMeso={setActiveMeso} activeWeek={activeWeek} setActiveWeek={setActiveWeek} activeDay={activeDay} setActiveDay={setActiveDay}
-      />
-  );
-}
-
-// Botón trigger oculto para el modal (hack rápido para no elevar estado UI)
-const PlanEditorButtonTrigger = ({onSave, categories}:any) => {
-    const [open, setOpen] = useState(false);
-    return (
-        <>
-            <button id="plan-creator-trigger" className="hidden" onClick={()=>setOpen(true)}></button>
-            <PlanEditor isOpen={open} onClose={()=>setOpen(false)} onSave={onSave} categories={categories}/>
-        </>
-    )
-}
-
-// --- CREAR EJERCICIO MODAL ---
-const CreateExerciseModal = ({ isOpen, onClose, onCreate, category }: any) => {
+const CreateExerciseModal = ({ isOpen, onClose, onCreate, categories }: any) => {
     const [name, setName] = useState('');
     if (!isOpen) return null;
     return (
@@ -371,10 +476,55 @@ const CreateExerciseModal = ({ isOpen, onClose, onCreate, category }: any) => {
             <div className="bg-slate-900 border border-slate-700 p-6 rounded-2xl w-full max-w-sm shadow-2xl relative">
                 <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-white"><X/></button>
                 <h2 className="text-lg font-bold mb-1 text-white">Nuevo Ejercicio</h2>
-                <p className="text-xs text-slate-400 mb-4 uppercase tracking-wider">{category}</p>
+                <p className="text-xs text-slate-400 mb-4 uppercase tracking-wider">{categories[0]}</p>
                 <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre del ejercicio..." className="w-full bg-slate-800 border border-slate-600 rounded-lg p-3 text-white focus:border-blue-500 outline-none mb-4" autoFocus />
-                <button disabled={!name.trim()} onClick={() => { onCreate(name, category); setName(''); onClose(); }} className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 rounded-lg transition-colors">Guardar Ejercicio</button>
+                <button disabled={!name.trim()} onClick={() => { onCreate(name, categories[0]); setName(''); onClose(); }} className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 rounded-lg transition-colors">Guardar Ejercicio</button>
             </div>
         </div>
     );
 };
+
+const SettingsModal = ({ isOpen, onClose, fullData, onImport }: any) => {
+    const fileRef = useRef<any>(null);
+    if (!isOpen) return null;
+    
+    const handleExport = () => {
+        const blob = new Blob([JSON.stringify(fullData)], {type: 'application/json'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = 'rp_backup.json'; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    };
+
+    const handleImportFile = (e: any) => {
+        const reader = new FileReader();
+        reader.onload = (ev: any) => onImport(JSON.parse(ev.target.result));
+        reader.readAsText(e.target.files[0]);
+        onClose();
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/90 flex items-center justify-center p-4 z-50">
+            <div className="bg-slate-900 border border-slate-700 p-6 rounded-xl w-full max-w-sm space-y-4">
+                <h3 className="text-white font-bold mb-4 flex items-center gap-2"><Settings className="text-blue-500"/> Ajustes</h3>
+                <button onClick={handleExport} className="w-full p-4 bg-slate-800 rounded flex items-center gap-3 text-white hover:bg-slate-700"><Download size={20}/> Exportar Backup</button>
+                <button onClick={() => fileRef.current.click()} className="w-full p-4 bg-slate-800 rounded flex items-center gap-3 text-white hover:bg-slate-700"><Upload size={20}/> Importar Backup</button>
+                <input type="file" ref={fileRef} className="hidden" onChange={handleImportFile} />
+                <button onClick={() => { if(confirm("Borrar todo?")) { localStorage.clear(); window.location.reload(); } }} className="w-full p-4 bg-red-900/20 text-red-400 rounded flex items-center gap-3 hover:bg-red-900/30"><Trash2 size={20}/> Resetear Fábrica</button>
+                <button onClick={onClose} className="w-full p-2 text-slate-500 text-sm mt-2">Cerrar</button>
+            </div>
+        </div>
+    );
+};
+
+const DocsModal = ({ isOpen, onClose }: any) => {
+    if (!isOpen) return null;
+    return (
+        <div className="fixed inset-0 bg-black/90 flex items-center justify-center p-4 z-50">
+            <div className="bg-slate-900 border border-slate-700 w-full max-w-lg h-[80vh] rounded-2xl p-4 overflow-y-auto">
+                <div className="flex justify-between mb-4"><h2 className="text-white font-bold">Docs</h2><button onClick={onClose}><X className="text-white"/></button></div>
+                <div className="text-slate-300 text-sm space-y-4">
+                    <p>Aquí irá la documentación de RP...</p>
+                </div>
+            </div>
+        </div>
+    );
+}
